@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Up - HTML5</title>
+    <style>
+        /* Prevents any scrolling or pulling down on mobile */
+        html, body {
+            margin: 0;
+            padding: 0;
+            background-color: #000;
+            overflow: hidden;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            touch-action: none;
+            font-family: Arial, sans-serif;
+        }
+
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #game-container {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            max-width: 100vw;
+            max-height: 100vh;
+            border: 2px solid #000;
+            overflow: hidden;
+            aspect-ratio: 2/3; 
+            box-shadow: 0 0 20px rgba(0,0,0,0.8);
+        }
+
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        /* --- TRANSPARENT BUTTON STYLING --- */
+        .ui-btn {
+            background-color: transparent; /* Forces transparent base */
+            background-size: cover;
+            background-position: center;
+            border: none;
+            cursor: pointer;
+            outline: none;
+            -webkit-tap-highlight-color: transparent;
+            opacity: 0.85; /* Semi-transparent glass effect */
+            transition: transform 0.1s ease, opacity 0.1s ease;
+        }
+
+        /* Button click/tap animation */
+        .ui-btn:active {
+            transform: scale(0.93);
+            opacity: 1.0; /* Becomes solid when pressed */
+        }
+
+        /* --- MENUS --- */
+        .ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 20; 
+        }
+        .active { display: flex; }
+
+        /* Dark semi-transparent background for Pause/GameOver */
+        .overlay-bg {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: -1;
+        }
+
+        #play-btn { width: 150px; height: 80px; margin-bottom: 40px; background-image: url('play button.png'); }
+        #exit-btn { width: 150px; height: 80px; background-image: url('Exit button.png'); }
+        #menu-logo { width: 150px; height: 150px; margin-bottom: 50px; background-image: url('logo.png'); background-size: cover; opacity: 1.0; pointer-events: none;}
+        #menu-highscore { position: absolute; top: 15px; left: 10px; color: white; font-size: 18px; font-weight: bold; text-shadow: 1px 1px 3px black;}
+
+        #restart-btn { width: 130px; height: 70px; margin-bottom: 20px; background-image: url('Restart_Button.png'); background-size: cover; }
+        #back-menu-btn { width: 200px; height: 60px; background-image: url('Back to main menu.png'); background-size: cover; }
+        #resume-btn { width: 100px; height: 60px; margin-bottom: 20px; background-image: url('resume.png'); background-size: cover; }
+        
+        .text-ui {
+            color: #ff3333;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px black;
+            margin-bottom: 20px;
+            font-size: 28px;
+            z-index: 1;
+        }
+
+        /* --- GAME HUD --- */
+        #game-hud {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: 10;
+            pointer-events: none; 
+            display: none; 
+        }
+        #game-hud > * { pointer-events: auto; }
+
+        #pause-btn {
+            position: absolute;
+            top: 10px; right: 10px;
+            width: 40px; height: 40px;
+            background-image: url('stop.png');
+            background-size: cover;
+        }
+        #hud-score {
+            position: absolute;
+            top: 15px; left: 280px;
+            color: white; font-weight: bold; font-size: 20px;
+            text-shadow: 1px 1px 2px black;
+            pointer-events: none;
+        }
+        #hud-credits {
+            position: absolute;
+            bottom: 85px; left: 210px; /* Moved up slightly so it doesn't overlap mobile buttons */
+            color: white; font-size: 12px;
+            text-shadow: 1px 1px 2px black;
+            pointer-events: none;
+        }
+        
+        /* --- MOBILE CONTROLS --- */
+        #mobile-controls {
+            position: absolute;
+            bottom: 10px; left: 0;
+            width: 100%; height: 80px;
+            z-index: 15;
+            display: none; 
+            pointer-events: none; 
+        }
+        .ctrl-btn {
+            position: absolute;
+            background-size: cover;
+            pointer-events: auto; 
+        }
+        #left-btn { left: 260px; bottom: 0; width: 60px; height: 60px; background-image: url('left.png'); }
+        #right-btn { left: 330px; bottom: 0; width: 60px; height: 60px; background-image: url('right.png'); }
+        #jump-btn { left: 20px; bottom: 0; width: 70px; height: 70px; background-image: url('jump.png'); }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+    <!-- Main Menu -->
+    <div id="menu-screen" class="ui-layer active">
+        <div id="menu-highscore">High Score: 0</div>
+        <div id="menu-logo"></div>
+        <button id="play-btn" class="ui-btn" onclick="startGame()"></button>
+        <button id="exit-btn" class="ui-btn" onclick="exitGame()"></button>
+    </div>
+
+    <!-- In-Game HUD -->
+    <div id="game-hud">
+        <div id="hud-score">Score: 0</div>
+        <div id="hud-credits">Made by: Harshit Singh</div>
+        <button id="pause-btn" class="ui-btn" onclick="togglePause()"></button>
+    </div>
+
+    <!-- Pause Menu (Has dark overlay) -->
+    <div id="pause-screen" class="ui-layer">
+        <div class="overlay-bg"></div>
+        <div class="text-ui">Game Paused</div>
+        <div class="text-ui" id="pause-hs" style="font-size: 18px; margin-top:-10px;"></div>
+        <button id="resume-btn" class="ui-btn" onclick="togglePause()"></button>
+        <button id="back-menu-btn" class="ui-btn" onclick="backToMenu()"></button>
+    </div>
+
+    <!-- Game Over Menu (Has dark overlay) -->
+    <div id="gameover-screen" class="ui-layer">
+        <div class="overlay-bg"></div>
+        <div class="text-ui">GAME OVER</div>
+        <div class="text-ui" id="go-hs" style="font-size: 18px; margin-top:-10px;"></div>
+        <button id="restart-btn" class="ui-btn" onclick="restartGame()"></button>
+        <button id="back-menu-btn" class="ui-btn" style="margin-top: 10px;" onclick="backToMenu()"></button>
+    </div>
+
+    <!-- Mobile Controls -->
+    <div id="mobile-controls">
+        <button id="left-btn" class="ctrl-btn ui-btn"></button>
+        <button id="right-btn" class="ctrl-btn ui-btn"></button>
+        <button id="jump-btn" class="ctrl-btn ui-btn"></button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const WIDTH = 400;
+    const HEIGHT = 600;
+
+    const menuScreen = document.getElementById('menu-screen');
+    const pauseScreen = document.getElementById('pause-screen');
+    const gameoverScreen = document.getElementById('gameover-screen');
+    const gameHud = document.getElementById('game-hud');
+    const mobileControls = document.getElementById('mobile-controls');
+    const hudScore = document.getElementById('hud-score');
+    const menuHighscore = document.getElementById('menu-highscore');
+    const pauseHs = document.getElementById('pause-hs');
+    const goHs = document.getElementById('go-hs');
+
+    // --- ASSET LOADING ---
+    const assets = {};
+    ['A serene sky over lish cliffs.png', 'A serene sky over lush cliffs.png', 'plateform1.png', 'charecter.png'].forEach(src => {
+        const img = new Image();
+        img.src = src;
+        assets[src.split('.')[0]] = img; 
+    });
+
+    // --- AUDIO ---
+    let musicStarted = false;
+    const sounds = {};
+    function loadSound(name, file, vol=1.0) {
+        const aud = new Audio(file);
+        aud.volume = vol;
+        sounds[name] = aud;
+    }
+    
+    loadSound('jump', 'jump.mp3', 0.6);
+    loadSound('gameover', 'game-over.mp3', 0.8);
+    loadSound('button', 'select_button.mp3', 0.5);
+    loadSound('start', 'foxboytails-game-start-317318.mp3', 1.0);
+    loadSound('music', 'music.mp3', 0.2);
+    sounds['music'].loop = true;
+
+    function playSound(name) {
+        if(sounds[name]) {
+            sounds[name].currentTime = 0; 
+            sounds[name].play().catch(e=>{}); 
+        }
+    }
+
+    // --- VARIABLES ---
+    const GRAVITY = 0.5, JUMP_POWER = -12, MOVE_SPEED = 5, JUMP_GAP = 120, PLAT_W = 80, PLAT_H = 15;
+    let state = 'menu', score = 0, cheatMode = false, gameStartedOnce = false;
+    let highScore = parseInt(localStorage.getItem('upHighScore')) || 0;
+    let player = { x: 200, y: 500, prevY: 500, w: 30, h: 50, vy: 0, onGround: false, facingRight: true };
+    let platforms = [], keys = { left: false, right: false, space: false };
+
+    function updateHighScoreUI() { menuHighscore.innerText = `High Score: ${highScore}`; }
+    function saveHighScore() { if(score > highScore) { highScore = score; localStorage.setItem('upHighScore', highScore); } updateHighScoreUI(); }
+    updateHighScoreUI();
+
+    function initPlatforms() {
+        platforms = [];
+        platforms.push({ x: 150, y: HEIGHT - 40, w: PLAT_W, h: PLAT_H });
+        for(let i=1; i<6; i++) platforms.push({ x: Math.random() * (WIDTH - PLAT_W), y: HEIGHT - 40 - (i * JUMP_GAP), w: PLAT_W, h: PLAT_H });
+    }
+
+    function showScreen(screenId) {
+        menuScreen.classList.remove('active');
+        pauseScreen.classList.remove('active');
+        gameoverScreen.classList.remove('active');
+        gameHud.style.display = 'none';
+        mobileControls.style.display = 'none';
+        if(screenId) document.getElementById(screenId).classList.add('active');
+        else { gameHud.style.display = 'block'; mobileControls.style.display = 'block'; }
+    }
+
+    function startGame() {
+        playSound('button');
+        if(!gameStartedOnce) { playSound('start'); gameStartedOnce = true; }
+        if(!musicStarted) { sounds['music'].play().catch(e=>{}); musicStarted = true; }
+        resetGame(); state = 'playing'; showScreen(null);
+    }
+    function restartGame() { playSound('button'); resetGame(); state = 'playing'; showScreen(null); }
+    function backToMenu() { playSound('button'); saveHighScore(); state = 'menu'; showScreen('menu-screen'); }
+    function togglePause() {
+        if(state === 'playing') { playSound('button'); state = 'paused'; saveHighScore(); pauseHs.innerText = `High Score: ${highScore}`; showScreen('pause-screen'); }
+        else if(state === 'paused') { playSound('button'); state = 'playing'; showScreen(null); }
+    }
+    function triggerGameOver() { playSound('gameover'); state = 'gameover'; saveHighScore(); goHs.innerText = `High Score: ${highScore}`; showScreen('gameover-screen'); }
+    function exitGame() { playSound('button'); backToMenu(); }
+
+    function resetGame() {
+        player.x = 200; player.y = 500; player.prevY = 500; player.vy = 0; player.onGround = false; player.facingRight = true;
+        score = 0; cheatMode = false; initPlatforms(); hudScore.innerText = 'Score: 0';
+    }
+
+    // --- INPUT ---
+    window.addEventListener('keydown', e => {
+        if(state !== 'playing') return;
+        if(e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+        if(e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+        if(e.code === 'Space') { keys.space = true; e.preventDefault(); } 
+        if(e.code === 'KeyC') cheatMode = !cheatMode;
+        if(e.code === 'Escape') togglePause();
+    });
+    window.addEventListener('keyup', e => {
+        if(e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+        if(e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+        if(e.code === 'Space') keys.space = false;
+    });
+
+    function addTouchEvents(id, keyName) {
+        const btn = document.getElementById(id);
+        btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyName] = true; }, {passive: false});
+        btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyName] = false; }, {passive: false});
+        btn.addEventListener('touchcancel', (e) => { e.preventDefault(); keys[keyName] = false; }, {passive: false});
+        btn.addEventListener('mousedown', () => keys[keyName] = true);
+        btn.addEventListener('mouseup', () => keys[keyName] = false);
+        btn.addEventListener('mouseleave', () => keys[keyName] = false);
+    }
+    addTouchEvents('left-btn', 'left'); addTouchEvents('right-btn', 'right'); addTouchEvents('jump-btn', 'space');
+
+    // --- LOGIC ---
+    function update() {
+        if(state !== 'playing') return;
+        if(keys.left) { player.x -= MOVE_SPEED; player.facingRight = false; }
+        if(keys.right) { player.x += MOVE_SPEED; player.facingRight = true; }
+        if(keys.space && player.onGround) { player.vy = JUMP_POWER; player.onGround = false; playSound('jump'); keys.space = false; }
+        if(player.x + player.w < 0) player.x = WIDTH;
+        if(player.x > WIDTH) player.x = -player.w;
+
+        player.prevY = player.y;
+        player.vy += GRAVITY;
+        player.y += player.vy;
+
+        player.onGround = false;
+        let pBottom = player.y + player.h, prevBottom = player.prevY + player.h;
+        for(let p of platforms) {
+            if (player.x + player.w > p.x && player.x < p.x + p.w && player.vy >= 0) {
+                if (prevBottom <= p.y + 5 && pBottom >= p.y) {
+                    player.y = p.y - player.h; player.vy = 0; player.onGround = true;
+                }
+            }
+        }
+
+        if(player.y < HEIGHT / 3) { let scroll = HEIGHT / 3 - player.y; player.y = HEIGHT / 3; score += scroll; for(let p of platforms) p.y += scroll; }
+        for(let i in platforms) { if(platforms[i].y > HEIGHT) { let highest = platforms.reduce((min, p) => p.y < min.y ? p : min, platforms[0]); platforms[i] = { x: Math.random() * (WIDTH - PLAT_W), y: highest.y - JUMP_GAP, w: PLAT_W, h: PLAT_H }; }}
+        if(player.y > HEIGHT) triggerGameOver();
+        hudScore.innerText = `Score: ${Math.floor(score)}`;
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, WIDTH, HEIGHT);
+        let bgKey = state === 'menu' ? 'A serene sky over lish cliffs' : 'A serene sky over lush cliffs';
+        if(cheatMode) { ctx.fillStyle = `rgb(${Math.random()*255}, ${Math.random()*255}, ${Math.random()*255})`; ctx.fillRect(0, 0, WIDTH, HEIGHT); }
+        else if(assets[bgKey] && assets[bgKey].complete) ctx.drawImage(assets[bgKey], 0, 0, WIDTH, HEIGHT);
+        
+        if(assets['plateform1'] && assets['plateform1'].complete) for(let p of platforms) ctx.drawImage(assets['plateform1'], p.x, p.y, p.w, p.h);
+
+        if (assets['charecter'] && assets['charecter'].complete) {
+            ctx.save();
+            ctx.translate(player.x + player.w / 2, player.y + player.h / 2);
+            if (player.facingRight) ctx.scale(-1, 1);
+            ctx.drawImage(assets['charecter'], -player.w / 2, -player.h / 2, player.w, player.h);
+            ctx.restore();
+        }
+    }
+
+    function gameLoop() { update(); draw(); requestAnimationFrame(gameLoop); }
+    initPlatforms();
+    gameLoop();
+</script>
+</body>
+</html>
